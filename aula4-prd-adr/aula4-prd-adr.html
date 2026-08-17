@@ -1,0 +1,1180 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Aula 4 — PRD, ADR e o Porquê</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=IBM+Plex+Sans:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #050a14;
+  --cyan: #00e5ff;
+  --green: #00ff88;
+  --orange: #ff6b35;
+  --purple: #7c3aed;
+  --pink: #f472b6;
+  --text: #e8f4f8;
+  --muted: #7fa8c0;
+  --card: rgba(255,255,255,0.04);
+  --border: rgba(0,229,255,0.15);
+}
+*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+html, body { width:100%; height:100%; overflow:hidden; background:var(--bg); color:var(--text); font-family:'IBM Plex Sans',sans-serif; }
+
+#bg { position:fixed; inset:0; z-index:0; opacity:.3; pointer-events:none; }
+
+#progress-bar {
+  position:fixed; top:0; left:0; height:3px; z-index:200;
+  background:linear-gradient(90deg, var(--cyan), var(--purple));
+  transition: width .4s ease;
+}
+
+#topbar {
+  position:fixed; top:0; left:0; right:0; height:52px; z-index:150;
+  background:rgba(5,10,20,.88); backdrop-filter:blur(14px);
+  border-bottom:1px solid var(--border);
+  display:flex; align-items:center; justify-content:space-between; padding:0 32px;
+}
+.tb-label { font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--cyan); letter-spacing:2px; text-transform:uppercase; }
+.tb-counter { font-family:'IBM Plex Mono',monospace; font-size:13px; color:var(--muted); }
+.tb-title { font-family:'IBM Plex Sans',sans-serif; font-size:13px; color:var(--muted); max-width:360px; text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+#slides { position:fixed; inset:0; z-index:1; }
+
+.slide {
+  position:absolute; inset:0;
+  display:flex; flex-direction:column; justify-content:flex-start; align-items:center;
+  padding:72px 60px 80px;
+  opacity:0; pointer-events:none;
+  transition: opacity .5s ease, transform .5s ease;
+  transform: translateX(60px);
+  overflow-y: auto;
+}
+.slide.active { opacity:1; pointer-events:all; transform:translateX(0); }
+.slide.prev   { opacity:0; pointer-events:none; transform:translateX(-60px); }
+.slide-inner { width:100%; max-width:1060px; margin:auto 0; }
+
+#nav-prev, #nav-next {
+  position:fixed; top:50%; z-index:200;
+  transform:translateY(-50%);
+  width:48px; height:48px; border-radius:50%;
+  border:1px solid var(--border); background:rgba(5,10,20,.7);
+  backdrop-filter:blur(8px); cursor:pointer;
+  display:flex; align-items:center; justify-content:center;
+  font-size:20px; color:var(--cyan);
+  transition:all .2s; user-select:none;
+}
+#nav-prev { left:16px; }
+#nav-next { right:16px; }
+#nav-prev:hover, #nav-next:hover { background:rgba(0,229,255,.12); border-color:var(--cyan); }
+#nav-prev.disabled, #nav-next.disabled { opacity:.25; pointer-events:none; }
+
+#dots { position:fixed; bottom:18px; left:50%; transform:translateX(-50%); display:flex; gap:7px; z-index:200; }
+.dot { width:7px; height:7px; border-radius:50%; background:var(--muted); opacity:.4; cursor:pointer; transition:all .3s; }
+.dot.active { background:var(--cyan); opacity:1; transform:scale(1.3); }
+
+.tag  { font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--cyan);   letter-spacing:3px; text-transform:uppercase; margin-bottom:10px; display:block; }
+.gtag { font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--green);  letter-spacing:3px; text-transform:uppercase; margin-bottom:10px; display:block; }
+.ptag { font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--purple); letter-spacing:3px; text-transform:uppercase; margin-bottom:10px; display:block; }
+.otag { font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--orange); letter-spacing:3px; text-transform:uppercase; margin-bottom:10px; display:block; }
+
+h1.hero-title { font-family:'Syne',sans-serif; font-size:clamp(2.2rem,4.6vw,4.2rem); font-weight:800; line-height:1.05; margin-bottom:20px; }
+h2.sec-title  { font-family:'Syne',sans-serif; font-size:clamp(1.5rem,3.3vw,2.5rem); font-weight:800; line-height:1.15; margin-bottom:12px; }
+h3.slide-h3   { font-family:'Syne',sans-serif; font-size:1.2rem; font-weight:700; margin-bottom:16px; }
+p.lead { color:var(--muted); font-size:1rem; line-height:1.7; margin-bottom:24px; }
+
+.badge {
+  display:inline-flex; align-items:center; gap:8px;
+  background:rgba(0,229,255,.08); border:1px solid var(--border);
+  border-radius:20px; padding:6px 16px;
+  font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--cyan); letter-spacing:1px;
+  margin-bottom:28px; width:fit-content;
+}
+.badge::before { content:''; width:7px; height:7px; background:var(--green); border-radius:50%; animation:pulse 2s infinite; }
+@keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.5;transform:scale(1.5)} }
+
+.hero-q {
+  background:linear-gradient(135deg,rgba(0,229,255,.06),rgba(124,58,237,.06));
+  border:1px solid rgba(0,229,255,.2); border-left:4px solid var(--cyan);
+  border-radius:12px; padding:22px 28px; font-size:1.1rem; font-style:italic; color:var(--text);
+  max-width:740px; margin-top:8px;
+  animation:fadeUp .8s ease both .3s;
+}
+@keyframes fadeUp { from{opacity:0;transform:translateY(24px)} to{opacity:1;transform:translateY(0)} }
+
+.card { background:var(--card); border:1px solid var(--border); border-radius:16px; padding:24px; }
+.g2 { display:grid; grid-template-columns:1fr 1fr; gap:24px; }
+.g3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:16px; }
+@media(max-width:680px){.g2,.g3{grid-template-columns:1fr}}
+
+.pill-row { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:24px; }
+.pill { background:rgba(0,255,136,.07); border:1px solid rgba(0,255,136,.25); border-radius:20px; padding:5px 14px; font-size:12px; color:var(--green); font-family:'IBM Plex Mono',monospace; }
+
+.vs-wrap { display:grid; grid-template-columns:1fr 56px 1fr; gap:0; align-items:stretch; margin-bottom:20px; }
+@media(max-width:680px){.vs-wrap{grid-template-columns:1fr}.vs-sep{display:none}}
+.vs-col { background:var(--card); border:1px solid var(--border); border-radius:14px; padding:20px; display:flex; flex-direction:column; gap:10px; }
+.vs-col.ml { border-color:rgba(255,107,53,.25); }
+.vs-col.rn { border-color:rgba(0,229,255,.25); }
+.vs-col-title { font-family:'Syne',sans-serif; font-weight:800; font-size:1rem; display:flex; align-items:center; gap:8px; margin-bottom:4px; }
+.vs-sep { display:flex; align-items:center; justify-content:center; font-family:'Syne',sans-serif; font-weight:800; font-size:1.4rem; color:var(--muted); }
+.vs-item { display:flex; gap:8px; align-items:flex-start; padding:9px 12px; border-radius:8px; background:rgba(0,0,0,.25); font-size:.83rem; line-height:1.5; }
+.vs-item .vt { color:var(--muted); }
+.vs-item .vt strong { color:var(--text); display:block; margin-bottom:1px; }
+
+.bridge { background:linear-gradient(135deg,rgba(0,229,255,.05),rgba(124,58,237,.05)); border:1px solid rgba(0,229,255,.2); border-radius:14px; padding:24px 28px; }
+
+.quiz-q { font-family:'Syne',sans-serif; font-size:1.02rem; font-weight:700; margin-bottom:16px; }
+.qopts { display:flex; flex-direction:column; gap:9px; }
+.qopt { padding:13px 18px; border-radius:10px; border:1px solid var(--border); cursor:pointer; transition:all .2s; font-size:.88rem; background:transparent; color:var(--text); text-align:left; width:100%; font-family:inherit; }
+.qopt:hover { border-color:var(--cyan); background:rgba(0,229,255,.05); }
+.qopt.correct { border-color:var(--green); background:rgba(0,255,136,.07); color:var(--green); }
+.qopt.wrong   { border-color:var(--orange); background:rgba(255,107,53,.07); color:var(--orange); }
+.qfb { margin-top:12px; padding:12px 16px; border-radius:9px; font-size:.84rem; display:none; line-height:1.5; }
+.qfb.show { display:block; }
+.qfb.cfb { background:rgba(0,255,136,.07); border:1px solid rgba(0,255,136,.2); color:var(--green); }
+.qfb.wfb { background:rgba(255,107,53,.07); border:1px solid rgba(255,107,53,.2); color:var(--orange); }
+
+.slide-scroll { overflow-y:auto; max-height:calc(100vh - 140px); padding-right:8px; }
+.slide-scroll::-webkit-scrollbar { width:4px; }
+.slide-scroll::-webkit-scrollbar-thumb { background:rgba(0,229,255,.2); border-radius:2px; }
+
+.practice-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:14px; }
+@media(max-width:680px){ .practice-grid{ grid-template-columns:1fr; } }
+.practice-card { background:var(--card); border:1px solid var(--border); border-left:3px solid var(--cyan); border-radius:12px; padding:16px 18px; transition:.2s; }
+.practice-card:hover { border-color:var(--cyan); background:rgba(0,229,255,.04); }
+.practice-card b { display:block; font-family:'Syne',sans-serif; font-size:.92rem; margin-bottom:4px; }
+.practice-card span { color:var(--muted); font-size:.81rem; line-height:1.5; }
+
+.next-pills { display:flex; flex-wrap:wrap; gap:10px; justify-content:center; }
+.next-pill { font-family:'IBM Plex Mono',monospace; font-size:12px; padding:8px 16px; border-radius:20px; background:rgba(124,58,237,.08); border:1px solid rgba(124,58,237,.3); color:var(--pink); }
+
+.quote-box { background:rgba(0,0,0,.3); border-left:4px solid var(--purple); border-radius:10px; padding:18px 22px; font-style:italic; color:var(--text); font-size:.95rem; line-height:1.65; }
+
+.code {
+  background:rgba(0,0,0,.42); border:1px solid var(--border); border-radius:10px;
+  padding:14px 18px; font-family:'IBM Plex Mono',monospace; font-size:.76rem;
+  line-height:1.75; overflow-x:auto; white-space:pre; color:#bfe4f2;
+}
+.code .k { color:var(--pink); }
+.code .s { color:var(--green); }
+.code .c { color:var(--muted); font-style:italic; }
+.code .h { color:var(--cyan); font-weight:500; }
+.code .o { color:var(--orange); }
+
+.tbl { width:100%; border-collapse:collapse; font-size:.84rem; }
+.tbl th { text-align:left; font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:1.5px; text-transform:uppercase; color:var(--cyan); padding:10px 14px; border-bottom:1px solid var(--border); }
+.tbl td { padding:11px 14px; border-bottom:1px solid rgba(255,255,255,.05); color:var(--muted); vertical-align:top; line-height:1.55; }
+.tbl td strong { color:var(--text); }
+.tbl tbody tr:hover td { background:rgba(0,229,255,.03); }
+
+.step { display:flex; gap:14px; align-items:flex-start; padding:11px 15px; background:var(--card); border:1px solid var(--border); border-left:3px solid var(--cyan); border-radius:10px; margin-bottom:9px; }
+.step-time { flex-shrink:0; font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--cyan); background:rgba(0,229,255,.08); border-radius:6px; padding:5px 9px; min-width:62px; text-align:center; }
+.step-body { font-size:.84rem; line-height:1.55; color:var(--muted); }
+.step-body b { color:var(--text); display:block; margin-bottom:2px; font-family:'Syne',sans-serif; font-size:.88rem; }
+.step.hl { border-left-color:var(--orange); }
+.step.hl .step-time { color:var(--orange); background:rgba(255,107,53,.1); }
+
+.yn { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+@media(max-width:680px){ .yn{ grid-template-columns:1fr; } }
+.yn-col { border-radius:14px; padding:18px 20px; }
+.yn-yes { background:rgba(0,255,136,.05); border:1px solid rgba(0,255,136,.22); }
+.yn-no  { background:rgba(255,107,53,.05); border:1px solid rgba(255,107,53,.22); }
+.yn-col h4 { font-family:'Syne',sans-serif; font-size:.95rem; margin-bottom:12px; }
+.yn-col li { list-style:none; font-size:.83rem; color:var(--muted); line-height:1.55; padding:6px 0 6px 20px; position:relative; }
+.yn-yes li::before { content:'✓'; position:absolute; left:0; color:var(--green); }
+.yn-no  li::before { content:'✕'; position:absolute; left:0; color:var(--orange); }
+
+.mem-grid { display:grid; grid-template-columns:1fr 1fr; gap:18px; }
+@media(max-width:680px){ .mem-grid{ grid-template-columns:1fr; } }
+.mem { border-radius:16px; padding:20px 22px; }
+.mem-short { background:rgba(255,107,53,.05); border:1px solid rgba(255,107,53,.25); }
+.mem-long  { background:rgba(0,255,136,.05); border:1px solid rgba(0,255,136,.25); }
+.mem h4 { font-family:'Syne',sans-serif; font-size:1.05rem; margin-bottom:4px; }
+.mem .msub { font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:1.5px; text-transform:uppercase; margin-bottom:14px; }
+.mem-row { display:flex; gap:10px; padding:8px 0; border-bottom:1px solid rgba(255,255,255,.05); font-size:.83rem; line-height:1.5; }
+.mem-row:last-child { border-bottom:none; }
+.mem-row .ml { flex-shrink:0; width:82px; font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:.5px; padding-top:2px; }
+.mem-row .mv { color:var(--text); }
+
+.hsec { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:14px 18px; margin-bottom:10px; border-left:3px solid var(--purple); }
+.hsec .hn { font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--purple); letter-spacing:1.5px; margin-bottom:5px; }
+.hsec .ht { font-family:'Syne',sans-serif; font-weight:700; font-size:.92rem; margin-bottom:4px; }
+.hsec .hd { color:var(--muted); font-size:.82rem; line-height:1.55; }
+.hsec.star { border-left-color:var(--orange); background:rgba(255,107,53,.04); }
+.hsec.star .hn { color:var(--orange); }
+
+/* ═══ NOVOS COMPONENTES — AULA 4 ═══ */
+
+.stepnum {
+  display:inline-flex; align-items:center; gap:10px;
+  font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:2px;
+  text-transform:uppercase; color:var(--bg); background:var(--cyan);
+  border-radius:6px; padding:5px 12px; margin-bottom:12px; font-weight:600;
+}
+.stepnum.p { background:var(--purple); color:#fff; }
+.stepnum.o { background:var(--orange); color:var(--bg); }
+
+.filebox { border:1px solid var(--border); border-radius:12px; overflow:hidden; background:rgba(0,0,0,.42); margin-bottom:14px; }
+.filebox-head {
+  display:flex; align-items:center; justify-content:space-between; gap:12px;
+  background:rgba(0,229,255,.06); border-bottom:1px solid var(--border);
+  padding:8px 14px; font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--cyan); letter-spacing:1px;
+}
+.filebox-head .fb-path::before { content:'▸ '; opacity:.6; }
+.copybtn {
+  font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:1px; text-transform:uppercase;
+  border:1px solid var(--border); background:transparent; color:var(--muted);
+  border-radius:6px; padding:4px 10px; cursor:pointer; transition:.2s;
+}
+.copybtn:hover { border-color:var(--cyan); color:var(--cyan); }
+.copybtn.done { border-color:var(--green); color:var(--green); }
+.filebox pre {
+  padding:14px 18px; font-family:'IBM Plex Mono',monospace; font-size:.74rem;
+  line-height:1.7; overflow-x:auto; white-space:pre; color:#bfe4f2; max-height:340px; overflow-y:auto;
+}
+.filebox pre::-webkit-scrollbar { width:4px; height:4px; }
+.filebox pre::-webkit-scrollbar-thumb { background:rgba(0,229,255,.2); border-radius:2px; }
+
+.promptbox { border:1px solid rgba(124,58,237,.35); background:rgba(124,58,237,.06); border-radius:12px; overflow:hidden; margin-bottom:14px; }
+.promptbox-head {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:8px 14px; border-bottom:1px solid rgba(124,58,237,.25);
+  font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:2px; text-transform:uppercase; color:var(--pink);
+}
+.promptbox pre { padding:14px 18px; font-family:'IBM Plex Mono',monospace; font-size:.78rem; line-height:1.75; white-space:pre-wrap; color:var(--text); }
+
+.expected { background:rgba(0,255,136,.05); border:1px solid rgba(0,255,136,.25); border-left:3px solid var(--green); border-radius:12px; padding:14px 18px; margin-top:14px; }
+.expected .ex-h { font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:2px; text-transform:uppercase; color:var(--green); margin-bottom:8px; }
+.expected li { list-style:none; font-size:.83rem; color:var(--muted); line-height:1.6; padding:3px 0 3px 20px; position:relative; }
+.expected li::before { content:'→'; position:absolute; left:0; color:var(--green); }
+.expected li strong { color:var(--text); }
+
+.warnbox { background:rgba(255,107,53,.05); border:1px solid rgba(255,107,53,.25); border-left:3px solid var(--orange); border-radius:12px; padding:14px 18px; margin-top:14px; }
+.warnbox .wh { font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:2px; text-transform:uppercase; color:var(--orange); margin-bottom:7px; }
+.warnbox p { font-size:.83rem; color:var(--muted); line-height:1.6; }
+.warnbox p strong { color:var(--text); }
+
+.gitline { display:flex; align-items:center; gap:10px; font-family:'IBM Plex Mono',monospace; font-size:.76rem; color:var(--green); background:rgba(0,255,136,.05); border:1px solid rgba(0,255,136,.2); border-radius:8px; padding:9px 14px; margin-top:12px; }
+.gitline::before { content:'$'; color:var(--muted); }
+
+.tri { display:grid; grid-template-columns:1fr 1fr 1fr; gap:14px; }
+@media(max-width:820px){ .tri{ grid-template-columns:1fr; } }
+.tri-col { border-radius:14px; padding:18px 20px; background:var(--card); border:1px solid var(--border); }
+.tri-col.a { border-color:rgba(255,107,53,.3); }
+.tri-col.b { border-color:rgba(0,229,255,.3); }
+.tri-col.c { border-color:rgba(0,255,136,.3); }
+.tri-col h4 { font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:1.5px; margin-bottom:10px; }
+.tri-col .tq { font-family:'Syne',sans-serif; font-weight:700; font-size:.95rem; margin-bottom:10px; color:var(--text); }
+.tri-col .td { font-size:.8rem; color:var(--muted); line-height:1.6; }
+
+.checklist { display:grid; grid-template-columns:1fr 1fr; gap:9px; }
+@media(max-width:680px){ .checklist{ grid-template-columns:1fr; } }
+.chk { display:flex; gap:10px; align-items:flex-start; background:var(--card); border:1px solid var(--border); border-radius:10px; padding:11px 14px; font-size:.83rem; color:var(--muted); line-height:1.5; cursor:pointer; transition:.2s; user-select:none; }
+.chk:hover { border-color:var(--cyan); }
+.chk .box { flex-shrink:0; width:16px; height:16px; border:1px solid var(--muted); border-radius:4px; margin-top:2px; display:flex; align-items:center; justify-content:center; font-size:11px; color:transparent; }
+.chk.on { border-color:var(--green); background:rgba(0,255,136,.06); color:var(--text); }
+.chk.on .box { border-color:var(--green); background:var(--green); color:var(--bg); }
+.chk.on .box::before { content:'✓'; }
+
+.flow { display:flex; align-items:center; gap:10px; flex-wrap:wrap; justify-content:center; margin:18px 0; }
+.flow-node { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:12px 18px; text-align:center; min-width:120px; }
+.flow-node .fn-t { font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:1.5px; color:var(--cyan); margin-bottom:4px; }
+.flow-node .fn-d { font-size:.78rem; color:var(--muted); }
+.flow-node.o { border-color:rgba(255,107,53,.3); }
+.flow-node.o .fn-t { color:var(--orange); }
+.flow-node.g { border-color:rgba(0,255,136,.3); }
+.flow-node.g .fn-t { color:var(--green); }
+.flow-arrow { color:var(--muted); font-size:1.2rem; }
+</style>
+</head>
+<body>
+
+<canvas id="bg"></canvas>
+<div id="progress-bar"></div>
+
+<div id="topbar">
+  <span class="tb-label">⬡ Aula 04 — PRD &amp; ADR</span>
+  <span class="tb-title" id="slide-title-bar"></span>
+  <span class="tb-counter" id="slide-counter"></span>
+</div>
+
+<div id="nav-prev">←</div>
+<div id="nav-next">→</div>
+<div id="dots"></div>
+
+<div id="slides">
+
+<!-- ─── 0 ─── -->
+<div class="slide active" data-title="Abertura">
+<div class="slide-inner">
+  <div class="badge">PRD, ADR E O PORQUÊ · AULA 4</div>
+  <h1 class="hero-title">O código guarda<br>o <span style="color:var(--cyan)">quê</span>.<br>Ninguém guarda<br>o <span style="color:var(--orange)">porquê</span>.</h1>
+  <p class="lead" style="max-width:740px;">Na aula passada vocês registraram onde pararam e como se trabalha no projeto. Ficou faltando a terceira memória — e ela é a única que precisa ser escrita <em>antes</em> do código existir.</p>
+  <div class="hero-q">🎬 Hoje muda o formato: <strong style="font-style:normal;color:var(--text)">projeto novo, repositório vazio, e vocês são o time de engenharia.</strong> Eu sou o cliente. Cada slide é um passo — só avance quando o passo estiver feito.</div>
+</div>
+</div>
+
+<!-- ─── 1 ─── -->
+<div class="slide" data-title="O plano das duas aulas">
+<div class="slide-inner">
+  <span class="tag">como isso vai funcionar</span>
+  <h2 class="sec-title">Duas aulas, um<br>repositório</h2>
+  <p class="lead">Hoje a gente <strong style="color:var(--cyan)">decide</strong>. Na próxima a gente <strong style="color:var(--green)">executa</strong>. E a ponte entre as duas é o handoff que vocês aprenderam na aula 3 — pela primeira vez sendo usado pra valer.</p>
+
+  <div class="g2">
+    <div class="card" style="border-color:rgba(0,229,255,.3)">
+      <span class="tag">hoje · aula 4</span>
+      <h3 class="slide-h3" style="margin-bottom:10px;">Decidir</h3>
+      <p style="color:var(--muted);font-size:.86rem;line-height:1.65;">Recebemos um PRD, descobrimos o que ele não responde, tomamos as decisões que faltam e registramos. Ao final: <strong style="color:var(--text)">zero linha de código</strong> e um repositório que sabe o que quer.</p>
+    </div>
+    <div class="card" style="border-color:rgba(0,255,136,.3)">
+      <span class="gtag">próxima · aula 5</span>
+      <h3 class="slide-h3" style="margin-bottom:10px;">Executar</h3>
+      <p style="color:var(--muted);font-size:.86rem;line-height:1.65;">Retomamos pelo handoff, implementamos o plano passo a passo e terminamos com o <strong style="color:var(--text)">sistema rodando e a tela abrindo no navegador</strong>.</p>
+    </div>
+  </div>
+
+  <div class="bridge" style="margin-top:20px;">
+    <p style="color:var(--muted);font-size:.88rem;line-height:1.7;">🎯 <strong style="color:var(--text)">A tese das duas aulas:</strong> a sala usa Cursor, Claude Code, Codex, Cline, Copilot e Antigravity. Vamos começar com seis arquiteturas diferentes e terminar com um resultado equivalente. A convergência não vem da ferramenta — vem dos arquivos.</p>
+  </div>
+</div>
+</div>
+
+<!-- ─── 2 ─── -->
+<div class="slide" data-title="Passo 1 — Setup">
+<div class="slide-inner slide-scroll">
+  <span class="stepnum">Passo 1</span>
+  <h2 class="sec-title">Todo mundo no<br>mesmo commit</h2>
+  <p class="lead">Descompacte o repositório base, entre na pasta e inicialize o git. Depois abra o projeto na sua ferramenta de sempre.</p>
+
+  <div class="code" style="margin-bottom:14px;"><span class="c"># na pasta do projeto</span>
+git init
+git add .
+git commit -m <span class="s">"chore: repositorio base"</span></div>
+
+  <p style="color:var(--muted);font-size:.86rem;line-height:1.7;margin-bottom:12px;">O repositório tem quatro coisas e mais nada. Repare no que <strong style="color:var(--orange)">não</strong> tem: nenhuma linguagem escolhida, nenhum <code style="font-family:'IBM Plex Mono';color:var(--cyan)">src/</code>, nenhum framework.</p>
+
+  <div class="code" style="margin-bottom:14px;">programa-pontos/
+├── <span class="h">AGENTS.md</span>              <span class="c">← só processo, sem stack</span>
+├── <span class="h">README.md</span>              <span class="c">← esqueleto vazio</span>
+├── .gitignore
+├── requirements.txt
+├── <span class="h">docs/</span>
+│   ├── PRD.md            <span class="c">← o que o negócio quer</span>
+│   └── adr/
+│       ├── README.md
+│       ├── template.md
+│       └── 003-expiracao-de-pontos.md
+└── <span class="h">static/</span>
+    └── index.html        <span class="c">← a tela, já pronta e mockada</span></div>
+
+  <div class="promptbox">
+    <div class="promptbox-head"><span>prompt de verificação</span><button class="copybtn" onclick="cp(this)">copiar</button></div>
+    <pre>Quais arquivos de instrução você está enxergando neste repositório?
+Liste os caminhos.</pre>
+  </div>
+
+  <div class="expected">
+    <div class="ex-h">o que se espera ao final do passo 1</div>
+    <ul>
+      <li>O agente <strong>cita o AGENTS.md pelo caminho</strong> — se ele não citar, sua ferramenta não está carregando o arquivo. Resolva agora, antes de seguir — vocês já viram na aula 3 qual arquivo cada ferramenta procura.</li>
+      <li>Um commit no <code>git log</code>.</li>
+    </ul>
+  </div>
+</div>
+</div>
+
+<!-- ─── 3 ─── -->
+<div class="slide" data-title="O que é um PRD">
+<div class="slide-inner slide-scroll">
+  <span class="ptag">conceito novo · 1 de 2</span>
+  <h2 class="sec-title">PRD — o documento<br>que vem de fora</h2>
+  <p class="lead"><strong style="color:var(--text)">Product Requirements Document.</strong> É o documento que descreve o problema de negócio e o que o produto precisa fazer. Ele não é seu — ele chega até você.</p>
+
+  <div class="g2" style="margin-bottom:18px;">
+    <div class="card">
+      <span class="tag">quem escreve</span>
+      <p style="color:var(--muted);font-size:.85rem;line-height:1.65;">Product manager, product owner, área de negócio, às vezes o próprio cliente. <strong style="color:var(--text)">Raramente a engenharia.</strong> Quando é a engenharia que escreve, normalmente é porque alguém não fez o trabalho — e aí é bom desconfiar do resultado.</p>
+    </div>
+    <div class="card">
+      <span class="tag">quando aparece</span>
+      <p style="color:var(--muted);font-size:.85rem;line-height:1.65;">Antes de qualquer linha de código. Ele é o <strong style="color:var(--text)">insumo</strong> do trabalho técnico, não o produto dele. Um PRD bom sobrevive a três reescritas do sistema, porque o problema de negócio não mudou.</p>
+    </div>
+  </div>
+
+  <div class="yn">
+    <div class="yn-col yn-yes">
+      <h4 style="color:var(--green)">O que um PRD tem</h4>
+      <li>O problema que o negócio quer resolver</li>
+      <li>O que o sistema precisa fazer, em linguagem de negócio</li>
+      <li>Regras que vêm de fora da engenharia — prazos legais, políticas, contratos</li>
+      <li>Restrições reais de uso: volume, quem usa, onde usa</li>
+      <li>O que está fora de escopo</li>
+    </div>
+    <div class="yn-col yn-no">
+      <h4 style="color:var(--orange)">O que um PRD não tem</h4>
+      <li>Linguagem, framework, banco de dados</li>
+      <li>Modelagem de dados ou nome de tabela</li>
+      <li>Arquitetura, camadas, padrões</li>
+      <li>Decisões que a engenharia precisa tomar</li>
+      <li>Detalhe de implementação de qualquer tipo</li>
+    </div>
+  </div>
+
+  <div class="warnbox">
+    <div class="wh">a confusão mais comum</div>
+    <p>Muita gente chama de PRD um documento que já vem com stack escolhida e diagrama de tabela. Isso não é PRD — é <strong>alguém do negócio decidindo no lugar da engenharia</strong>, ou engenharia se escondendo atrás do negócio. As duas coisas dão errado, e por motivos diferentes.</p>
+  </div>
+</div>
+</div>
+
+<!-- ─── 4 ─── -->
+<div class="slide" data-title="O PRD do projeto">
+<div class="slide-inner slide-scroll">
+  <span class="ptag">leia com atenção</span>
+  <h2 class="sec-title">O documento que<br>vocês receberam</h2>
+  <p class="lead">Este é o PRD do nosso projeto. Ele está no repositório em <code style="font-family:'IBM Plex Mono';color:var(--cyan)">docs/PRD.md</code>. Leia inteiro antes de avançar — quatro frases dele vão decidir a aula.</p>
+
+  <div class="filebox">
+    <div class="filebox-head"><span class="fb-path">docs/PRD.md</span><button class="copybtn" onclick="cp(this)">copiar</button></div>
+    <pre># PRD — Programa de Pontos
+
+**Solicitante:** Diretoria de Marketing
+**Time responsável:** Engenharia
+
+## Contexto
+
+Somos uma rede varejista com 40 lojas físicas e um e-commerce. Hoje o
+programa de fidelidade é operado por uma planilha mantida pelo Marketing,
+atualizada manualmente uma vez por semana. O processo não escala e já
+gerou reclamações de clientes por saldo divergente.
+
+## O que o sistema precisa fazer
+
+**Acúmulo.** O cliente ganha 1 ponto a cada R$ 1,00 gasto em compras.
+Em datas de campanha definidas pelo Marketing, a pontuação é dobrada.
+
+**Expiração.** Pontos expiram 12 meses após a compra que os originou.
+
+**Resgate.** O cliente troca pontos por produtos de um catálogo. Cada
+produto tem um custo em pontos definido pelo Marketing.
+
+**Estorno.** Se uma compra é cancelada ou devolvida, os pontos gerados
+por ela são desfeitos.
+
+**Atendimento.** O atendente da loja precisa conseguir explicar ao
+cliente por que o saldo dele é o que é. Hoje a pergunta mais comum no
+balcão é "eu tinha 500 pontos, por que agora tenho 320?" — e o
+atendente não sabe responder.
+
+**Fechamento contábil.** No fim de cada mês, o Financeiro precisa do
+total de pontos emitidos e ainda não resgatados. Esse número entra no
+balanço como passivo e é auditado.
+
+**Disputas.** Um cliente pode contestar seu saldo meses depois do fato.
+Precisamos conseguir reconstruir o que aconteceu na conta dele em
+qualquer data passada.
+
+## Restrições
+
+- A consulta de saldo acontece no PDV, com o cliente esperando no
+  caixa. Precisa ser rápida.
+- Nenhum registro pode ser apagado ou alterado depois de criado —
+  exigência da auditoria.
+- Volume: cerca de 180 mil clientes ativos, 25 mil compras por dia.
+
+## Fora de escopo nesta versão
+
+- App do cliente (a consulta é feita pelo atendente)
+- Níveis de fidelidade (bronze/prata/ouro)
+- Transferência de pontos entre clientes
+
+---
+Este documento descreve o que o negócio precisa. Decisões de
+tecnologia, modelagem e arquitetura são responsabilidade da engenharia.</pre>
+  </div>
+</div>
+</div>
+
+<!-- ─── 5 ─── -->
+<div class="slide" data-title="O AGENTS.md inicial">
+<div class="slide-inner slide-scroll">
+  <span class="tag">o segundo arquivo do repositório</span>
+  <h2 class="sec-title">Um AGENTS.md<br>propositalmente pobre</h2>
+  <p class="lead">Repare que ele não diz uma palavra sobre linguagem, banco ou arquitetura. Isso não é esquecimento.</p>
+
+  <div class="filebox">
+    <div class="filebox-head"><span class="fb-path">AGENTS.md</span><button class="copybtn" onclick="cp(this)">copiar</button></div>
+    <pre># Programa de Pontos
+
+Sistema de fidelidade da rede. O documento de negócio está em docs/PRD.md.
+
+## Processo
+
+- Leia docs/PRD.md antes de implementar qualquer feature.
+- Antes de implementar, liste os requisitos ambíguos que encontrar.
+  Não decida por conta própria o que o PRD deixou em aberto — pergunte.
+- Decisões estruturais (modelagem de dados, fronteiras de módulo,
+  dependências externas) precisam de um ADR em docs/adr/ antes do código.
+- Consulte docs/adr/README.md antes de propor mudanças estruturais.
+- Não contrarie uma decisão registrada em ADR sem avisar explicitamente.
+  Se você discorda de um ADR, diga por quê e espere — não refatore.
+
+## Qualidade
+
+- Toda regra de negócio tem teste.
+- Mudanças pequenas e revisáveis. Uma tarefa por vez.</pre>
+  </div>
+
+  <div class="bridge">
+    <p style="color:var(--muted);font-size:.88rem;line-height:1.7;">💭 Na aula 3 a gente fechou dizendo que <strong style="color:var(--text)">regra se destila do atrito</strong> — e que por isso não se escreve um AGENTS.md de 300 linhas no dia zero. Isso continua valendo. O que está aqui não é convenção destilada: é <strong style="color:var(--cyan)">regra de engajamento</strong>. Como o agente deve se comportar quando encontrar uma dúvida. Isso dá pra escrever antes de qualquer atrito.</p>
+  </div>
+</div>
+</div>
+
+<!-- ─── 6 ─── -->
+<div class="slide" data-title="Passo 2 — A divergência">
+<div class="slide-inner slide-scroll">
+  <span class="stepnum o">Passo 2</span>
+  <h2 class="sec-title">Podemos mandar<br>implementar?</h2>
+  <p class="lead">O PRD parece completo. Tem regra, tem volume, tem restrição. Vamos testar: peça a arquitetura, <strong style="color:var(--orange)">sem escrever código</strong>. Use o modo ask ou plan da sua ferramenta.</p>
+
+  <div class="promptbox">
+    <div class="promptbox-head"><span>prompt · todos, na sua própria ferramenta</span><button class="copybtn" onclick="cp(this)">copiar</button></div>
+    <pre>Leia @docs/PRD.md e proponha a arquitetura para este sistema:
+linguagem, forma de persistir os pontos, organização de módulos.
+Não implemente nada.</pre>
+  </div>
+
+  <p style="color:var(--muted);font-size:.86rem;line-height:1.7;margin:16px 0 10px;">Quando terminar, anote sua resposta nas quatro colunas. Vamos preencher a tabela no quadro com cinco pessoas de ferramentas diferentes.</p>
+
+  <table class="tbl">
+    <thead><tr><th>ferramenta</th><th>linguagem</th><th>como guarda o saldo</th><th>camadas</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Cursor</strong></td><td>?</td><td>?</td><td>?</td></tr>
+      <tr><td><strong>Claude Code</strong></td><td>?</td><td>?</td><td>?</td></tr>
+      <tr><td><strong>Copilot</strong></td><td>?</td><td>?</td><td>?</td></tr>
+      <tr><td><strong>Codex</strong></td><td>?</td><td>?</td><td>?</td></tr>
+      <tr><td><strong>Cline / Antigravity</strong></td><td>?</td><td>?</td><td>?</td></tr>
+    </tbody>
+  </table>
+
+  <div class="expected">
+    <div class="ex-h">o que se espera ao final do passo 2</div>
+    <ul>
+      <li>Uma proposta de arquitetura escrita, <strong>sem nenhum arquivo criado</strong>.</li>
+      <li>A tabela do quadro preenchida — e <strong>nenhuma linha igual à outra</strong>.</li>
+      <li>A maioria vai ter proposto um campo de saldo no cliente. Guarde isso.</li>
+    </ul>
+  </div>
+</div>
+</div>
+
+<!-- ─── 7 ─── -->
+<div class="slide" data-title="O que a divergência prova">
+<div class="slide-inner">
+  <span class="otag">olhem a tabela</span>
+  <h2 class="sec-title">Seis ferramentas,<br>seis arquiteturas</h2>
+
+  <div class="g3" style="margin-bottom:22px;">
+    <div class="card"><h3 class="slide-h3" style="font-size:1rem;">Duas propostas iguais?</h3><p style="color:var(--muted);font-size:.84rem;line-height:1.6;">Quase nunca. E vocês liam o mesmo PRD, no mesmo repositório, com o mesmo AGENTS.md.</p></div>
+    <div class="card"><h3 class="slide-h3" style="font-size:1rem;">Alguma acertou mais?</h3><p style="color:var(--muted);font-size:.84rem;line-height:1.6;">Não é sobre isso. Nenhuma tinha informação suficiente para acertar — o PRD não diz.</p></div>
+    <div class="card" style="border-color:rgba(255,107,53,.3)"><h3 class="slide-h3" style="font-size:1rem;color:var(--orange)">Alguma avisou?</h3><p style="color:var(--muted);font-size:.84rem;line-height:1.6;">Nenhuma. Todas decidiram em silêncio, com confiança total, como se fosse óbvio.</p></div>
+  </div>
+
+  <div class="hero-q" style="max-width:900px;">
+    🎯 A decisão <strong style="font-style:normal;color:var(--text)">não está na ferramenta — está faltando no repositório.</strong> Trocar de agente não resolve isso. Nunca vai. E é exatamente o mesmo padrão da aula 3: <em>"ele decidiu sozinho o que estava aberto"</em> — só que agora com dinheiro em cima.
+  </div>
+</div>
+</div>
+
+<!-- ─── 8 ─── -->
+<div class="slide" data-title="As quatro frases">
+<div class="slide-inner slide-scroll">
+  <span class="otag">de volta ao PRD</span>
+  <h2 class="sec-title">Quatro frases que<br>matam o <code style="font-family:'IBM Plex Mono';font-size:.75em">saldo INT</code></h2>
+  <p class="lead">A proposta mais comum foi um campo de saldo no cliente, com <code style="font-family:'IBM Plex Mono';color:var(--cyan)">UPDATE</code> a cada operação. É a leitura correta de cada requisito isolado. Agora leiam o PRD inteiro.</p>
+
+  <div class="hsec"><div class="hn">frase 1</div><div class="ht">"Pontos expiram 12 meses após a compra que os originou"</div><div class="hd">Saldo não é um número — é um conjunto de lotes com datas de origem diferentes. Um <code>INT</code> não sabe qual parte dele vence quando.</div></div>
+  <div class="hsec"><div class="hn">frase 2</div><div class="ht">"Estorno desfaz os pontos daquela compra"</div><div class="hd">E se os pontos daquela compra já foram gastos? Sem saber quais pontos saíram no resgate, não dá nem para formular a pergunta.</div></div>
+  <div class="hsec"><div class="hn">frase 3</div><div class="ht">"O atendente precisa explicar por que o saldo é o que é"</div><div class="hd">Um número não explica nada. A explicação exige a lista de eventos que produziram aquele número.</div></div>
+  <div class="hsec star"><div class="hn">frase 4 · a que mata de vez</div><div class="ht">"O Financeiro precisa do total não resgatado no fim de cada mês"</div><div class="hd">Isso é reconstruir o saldo em uma <strong>data passada</strong>. Com um campo sobrescrito, a informação de ontem não existe mais em lugar nenhum. Não é difícil — é impossível.</div></div>
+
+  <div class="bridge" style="margin-top:16px;">
+    <p style="color:var(--muted);font-size:.88rem;line-height:1.7;">⚠️ Repare: <strong style="color:var(--text)">o agente não errou por burrice.</strong> Ele errou porque tomou uma decisão que não era dele, em silêncio, e a escondeu num tipo de coluna. Daqui a seis semanas, com dado em produção, isso custa uma migração que ninguém sabe fazer — porque o histórico necessário nunca foi guardado.</p>
+  </div>
+</div>
+</div>
+
+<!-- ─── 9 ─── -->
+<div class="slide" data-title="O que é um ADR">
+<div class="slide-inner slide-scroll">
+  <span class="ptag">conceito novo · 2 de 2</span>
+  <h2 class="sec-title">ADR — o registro<br>da decisão</h2>
+  <p class="lead"><strong style="color:var(--text)">Architecture Decision Record.</strong> Um documento curto que registra uma decisão, as alternativas que perderam e o custo que vocês aceitaram pagar. A prática é antiga (Michael Nygard, 2011) — o que mudou foi quem lê.</p>
+
+  <div class="g2" style="margin-bottom:18px;">
+    <div class="card">
+      <span class="tag">quem escreve</span>
+      <p style="color:var(--muted);font-size:.85rem;line-height:1.65;">Quem tomou a decisão — normalmente a engenharia, às vezes junto com o negócio. O agente ajuda a <strong style="color:var(--text)">redigir</strong>, nunca a decidir. Se o agente escolheu sozinho, não é um ADR: é um registro do palpite dele.</p>
+    </div>
+    <div class="card">
+      <span class="tag">quando escreve</span>
+      <p style="color:var(--muted);font-size:.85rem;line-height:1.65;">No instante da decisão. É a única das três memórias cujo momento natural é o <strong style="color:var(--text)">começo</strong> — e as decisões mais caras são tomadas antes da primeira linha de código. Se não registrar ali, em duas semanas o motivo virou "sempre foi assim".</p>
+    </div>
+  </div>
+
+  <div class="hero-q" style="max-width:900px;">
+    💡 O que mudou em 2026: <strong style="font-style:normal;color:var(--text)">o leitor do ADR deixou de ser o dev novo que entra no time daqui a um ano.</strong> Agora é um agente que entra no projeto toda sessão, com zero memória, e que tem uma tendência forte a "consertar" decisões que parecem subótimas fora de contexto. ADR deixou de ser cerimônia e virou guard-rail.
+  </div>
+</div>
+</div>
+
+<!-- ─── 10 ─── -->
+<div class="slide" data-title="O que é e o que não é ADR">
+<div class="slide-inner slide-scroll">
+  <span class="tag">o filtro</span>
+  <h2 class="sec-title">ADR é para decisão<br>cara de reverter</h2>
+  <p class="lead">O critério não é importância nem tamanho. É quanto custa desfazer daqui a três meses, com o sistema em produção.</p>
+
+  <div class="yn" style="margin-bottom:18px;">
+    <div class="yn-col yn-yes">
+      <h4 style="color:var(--green)">É ADR</h4>
+      <li>Pontos são lançamentos imutáveis, não um campo de saldo</li>
+      <li>O domínio não conhece o banco de dados</li>
+      <li>Testes de regra de negócio rodam sem infraestrutura</li>
+      <li>Comunicação entre módulos por evento, não por chamada direta</li>
+      <li>Quais pontos saem primeiro no resgate <span style="color:var(--muted)">(decisão de negócio!)</span></li>
+    </div>
+    <div class="yn-col yn-no">
+      <h4 style="color:var(--orange)">Não é ADR</h4>
+      <li>O multiplicador de campanha fica na tabela de campanhas</li>
+      <li>Usamos Black com linha de 100 caracteres</li>
+      <li>Nome de teste é <code>test_&lt;o_que&gt;_&lt;quando&gt;</code></li>
+      <li>Pontos expiram em 12 meses <span style="color:var(--muted)">(isso é requisito do PRD!)</span></li>
+      <li>A pasta de domínio se chama <code>dominio/</code></li>
+    </div>
+  </div>
+
+  <div class="g2">
+    <div class="card" style="border-color:rgba(0,255,136,.25)">
+      <span class="gtag">a pergunta que separa</span>
+      <p style="color:var(--muted);font-size:.85rem;line-height:1.65;">"Existe uma alternativa que <strong style="color:var(--text)">alguém competente defenderia</strong>?" Se a resposta é não, você não tem um ADR — você tem um consenso. Consenso não precisa de registro.</p>
+    </div>
+    <div class="card" style="border-color:rgba(255,107,53,.25)">
+      <span class="otag">a segunda pergunta</span>
+      <p style="color:var(--muted);font-size:.85rem;line-height:1.65;">"Desfazer isso daqui a três meses custa <strong style="color:var(--text)">uma tarde ou uma migração</strong>?" Uma tarde é linha de código. Uma migração é ADR.</p>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ─── 11 ─── -->
+<div class="slide" data-title="Anatomia de um ADR">
+<div class="slide-inner slide-scroll">
+  <span class="tag">o formato</span>
+  <h2 class="sec-title">Quatro seções,<br>meia página</h2>
+
+  <div class="hsec"><div class="hn">01</div><div class="ht">Contexto</div><div class="hd">Que restrição do PRD ou do sistema <strong style="color:var(--text)">força essa decisão a existir</strong>. Não é introdução — é a pressão que criou o problema. Se você não consegue escrever, talvez não haja decisão a tomar.</div></div>
+  <div class="hsec"><div class="hn">02</div><div class="ht">Decisão</div><div class="hd">O que foi decidido, em uma ou duas frases, no presente. "Pontos são registrados como lançamentos imutáveis." Direto, sem hedging.</div></div>
+  <div class="hsec star"><div class="hn">03 · a que distingue ADR de teatro</div><div class="ht">Alternativas consideradas</div><div class="hd">O que mais estava na mesa e <strong style="color:var(--text)">por que perdeu</strong>. Se a alternativa que você escreveu é obviamente ruim, você inventou um espantalho. Se não havia alternativa defensável, isso não era um ADR.</div></div>
+  <div class="hsec"><div class="hn">04</div><div class="ht">Consequências</div><div class="hd">O que vocês <strong style="color:var(--text)">aceitaram pagar</strong>. Custos, limitações, o que fica mais difícil agora. Um ADR sem consequência negativa é propaganda, não registro.</div></div>
+
+  <div class="warnbox">
+    <div class="wh">a regra que ninguém aplica de primeira</div>
+    <p><strong>ADR é append-only.</strong> Você não edita um ADR quando muda de ideia — você escreve o próximo e marca o antigo como superado. O raciocínio errado de ontem faz parte do registro: é ele que impede alguém de refazer o mesmo caminho daqui a um ano.</p>
+  </div>
+</div>
+</div>
+
+<!-- ─── 12 ─── -->
+<div class="slide" data-title="Passo 3 — ADR-001">
+<div class="slide-inner slide-scroll">
+  <span class="stepnum">Passo 3</span>
+  <h2 class="sec-title">Primeira decisão:<br>o domínio conhece<br>o banco?</h2>
+  <p class="lead">Esta decisão o time já tomou — eu trago pronta, para a gente não gastar a aula discutindo camadas. <strong style="color:var(--text)">Criem o arquivo com este conteúdo</strong> e leiam com atenção a seção de alternativas: é ali que mora a diferença entre um ADR e uma ata de reunião.</p>
+
+  <div class="filebox">
+    <div class="filebox-head"><span class="fb-path">docs/adr/001-dominio-isolado-de-infra.md</span><button class="copybtn" onclick="cp(this)">copiar</button></div>
+    <pre># ADR-001 — Domínio isolado de infraestrutura
+
+**Status:** aceito
+**Data:** 2026-08-14
+
+## Contexto
+
+O PRD exige que o saldo seja consultado no PDV (rápido), que o
+Financeiro reconstrua o passivo em datas passadas e que disputas de
+cliente sejam auditáveis meses depois. São três consumidores diferentes
+da mesma regra de negócio. Além disso, a primeira interface será uma
+tela web, mas a operação de fechamento contábil provavelmente será um
+processo em lote.
+
+## Decisão
+
+A regra de negócio fica em `src/pontos/dominio/` e não importa banco,
+framework web ou I/O. O acesso a dados entra por um adaptador injetado.
+
+## Alternativas consideradas
+
+**Regra de negócio acessando SQLite diretamente.** Menos camadas, menos
+arquivos, e para um sistema deste tamanho a abstração pode nunca se
+pagar. É a escolha certa se o sistema tiver um único consumidor e vida
+curta — não é o caso aqui, porque já sabemos de três.
+
+## Consequências
+
+- Testes de regra de negócio rodam sem banco, em milissegundos.
+- Adicionar uma segunda interface não toca uma linha de domínio.
+- Pagamos: mais arquivos, uma camada de tradução a mais, e a
+  tentação constante de "furar" a fronteira quando der pressa.
+- Toda consulta de saldo passa por agregação — se o PDV ficar lento,
+  a solução é cache no adaptador, nunca desnormalizar o domínio.</pre>
+  </div>
+  <div class="expected">
+    <div class="ex-h">o que se espera ao final do passo 3</div>
+    <ul>
+      <li><code>docs/adr/001-dominio-isolado-de-infra.md</code> criado no repositório.</li>
+      <li>Vocês conseguem explicar, sem olhar, <strong>qual era a alternativa e por que ela era defensável</strong>.</li>
+      <li>Repare que as consequências admitem custos — mais arquivos, mais indireção, a tentação de furar a fronteira. <strong>ADR que só tem vantagem é propaganda.</strong></li>
+    </ul>
+  </div>
+</div>
+</div>
+
+<!-- ─── ADR-002 ─── -->
+<div class="slide" data-title="Passo 4 — ADR-002">
+<div class="slide-inner slide-scroll">
+  <span class="stepnum">Passo 4</span>
+  <h2 class="sec-title">Segunda decisão:<br>o saldo é um número<br>ou uma história?</h2>
+  <p class="lead">Também já decidida — e é a decisão que as quatro frases do PRD tornaram inevitável. O que importa aqui é que o <strong style="color:var(--text)">lado perdedor continua tendo argumento</strong>, e ele está registrado.</p>
+
+  <div class="filebox">
+    <div class="filebox-head"><span class="fb-path">docs/adr/002-lancamentos-vs-saldo.md</span><button class="copybtn" onclick="cp(this)">copiar</button></div>
+    <pre># ADR-002 — Pontos como lançamentos imutáveis
+
+**Status:** aceito
+**Data:** 2026-08-14
+
+## Contexto
+
+O PRD impõe quatro restrições que um saldo agregado não atende:
+pontos expiram 12 meses após a compra que os originou — ou seja, a
+expiração é por lote, não pelo total; o estorno desfaz os pontos de
+uma compra específica; o atendente precisa explicar ao cliente como o
+saldo foi formado; e o Financeiro precisa do passivo em uma data
+passada, auditável meses depois.
+
+## Decisão
+
+Pontos são registrados como lançamentos imutáveis, cada um com data de
+origem e valor. Não existe campo de saldo no cliente. O saldo é sempre
+calculado a partir dos lançamentos, para uma data de referência.
+
+## Alternativas consideradas
+
+**Campo de saldo no cliente, atualizado a cada operação.** Leitura
+instantânea, sem agregação — e o PRD exige consulta rápida no PDV, com
+o cliente esperando no caixa. É a escolha certa quando o saldo é apenas
+um número corrente. Perde aqui porque não sabe qual parte do saldo
+expira quando, e porque sobrescrever destrói exatamente a informação
+que o fechamento contábil precisa reconstruir.
+
+## Consequências
+
+- Toda consulta de saldo passa a ser uma agregação. Se o PDV ficar
+  lento, a resposta é cache no adaptador ou uma tabela derivada —
+  nunca substituir os lançamentos pela soma.
+- O extrato do atendente sai de graça: é a própria lista de lançamentos.
+- Correção nunca altera lançamento: gera um lançamento novo de ajuste.
+- Escrevemos mais código e ocupamos mais disco para responder a
+  pergunta mais simples do sistema: "quanto o cliente tem?".</pre>
+  </div>
+
+  <p style="color:var(--muted);font-size:.86rem;line-height:1.7;margin:4px 0 12px;">Falta uma coisa: o <strong style="color:var(--text)">índice</strong>. Ele já veio no repositório base e o AGENTS.md manda consultá-lo antes de qualquer mudança estrutural — acrescentem as duas linhas dos ADRs de hoje.</p>
+
+  <div class="filebox">
+    <div class="filebox-head"><span class="fb-path">docs/adr/README.md</span><button class="copybtn" onclick="cp(this)">copiar</button></div>
+    <pre># Decisões de arquitetura
+
+Índice das decisões deste projeto. Leia este arquivo antes de propor
+mudanças estruturais. Abra o ADR completo só quando precisar do
+raciocínio por trás da decisão.
+
+| #   | Decisão                             | Status |
+|-----|-------------------------------------|--------|
+| 001 | Domínio isolado de infraestrutura   | aceito |
+| 002 | Pontos como lançamentos imutáveis   | aceito |
+| 003 | Expiração de pontos em 12 meses     | aceito |</pre>
+  </div>
+
+  <div class="bridge" style="margin-bottom:14px;">
+    <p style="color:var(--muted);font-size:.88rem;line-height:1.7;">💡 <strong style="color:var(--text)">Por que um índice, se a pasta já lista os arquivos?</strong> Orçamento de contexto, de novo. Com quinze ADRs, "consulte docs/adr/" significa carregar quinze arquivos de meia página para descobrir que nenhum deles era relevante. Uma tabela de uma linha por decisão resolve em vinte tokens, e o agente abre só o que interessa. É a mesma economia da aula 3, aplicada a uma pasta.</p>
+  </div>
+
+  <div class="expected">
+    <div class="ex-h">o que se espera ao final do passo 4</div>
+    <ul>
+      <li>Os dois ADRs no repositório e o <code>docs/adr/README.md</code> com as duas linhas novas.</li>
+      <li>Vocês conseguem dizer <strong>qual restrição do PRD sozinha já mataria o campo de saldo</strong>.</li>
+      <li>Nenhuma linha de código escrita até aqui.</li>
+    </ul>
+  </div>
+
+  <div class="gitline">git add docs/adr &amp;&amp; git commit -m "docs: ADR-001 e ADR-002"</div>
+</div>
+</div>
+
+<!-- ─── 13 ─── -->
+<div class="slide" data-title="Passo 5 — Promover">
+<div class="slide-inner slide-scroll">
+  <span class="stepnum">Passo 5</span>
+  <h2 class="sec-title">Do ADR para<br>o AGENTS.md</h2>
+  <p class="lead">O agente não vai ler três arquivos de meia página em toda tarefa — isso é orçamento de contexto, exatamente como na aula 3. O ADR guarda o raciocínio; o AGENTS.md carrega a ordem.</p>
+
+  <div class="filebox">
+    <div class="filebox-head"><span class="fb-path">AGENTS.md · acrescentar ao final</span><button class="copybtn" onclick="cp(this)">copiar</button></div>
+    <pre>## Arquitetura
+
+- Domínio em src/pontos/dominio/, sem import de banco, web ou I/O. (ADR-001)
+- Pontos são lançamentos imutáveis. Não existe campo de saldo. (ADR-002)
+- Correção nunca altera lançamento: gera lançamento novo. (ADR-002)
+- Stack: Python, FastAPI, SQLite. Sem ORM.
+
+## Onde olhar
+
+- docs/PRD.md — o que o negócio quer
+- docs/adr/ — por que decidimos assim</pre>
+  </div>
+
+  <div class="hero-q" style="max-width:900px;">
+    🎯 <strong style="font-style:normal;color:var(--text)">ADR guarda o raciocínio. AGENTS guarda a orientação.</strong> Um é longo, tem alternativa e custo, e só é lido quando alguém quer contestar. O outro é curto, imperativo, e entra na janela em toda sessão.
+  </div>
+</div>
+</div>
+
+<!-- ─── 14 ─── -->
+<div class="slide" data-title="As três memórias">
+<div class="slide-inner">
+  <span class="tag">fechando a aula 3</span>
+  <h2 class="sec-title">Agora são três<br>memórias</h2>
+
+  <div class="tri">
+    <div class="tri-col a">
+      <h4 style="color:var(--orange)">CURTO PRAZO</h4>
+      <div class="tq">docs/handoff.md</div>
+      <div class="td"><strong style="color:var(--text)">Onde eu parei?</strong><br>Vale horas ou dias. Sobrescrito a cada sessão. Não versiona.</div>
+    </div>
+    <div class="tri-col b">
+      <h4 style="color:var(--cyan)">CONVENÇÃO</h4>
+      <div class="tq">AGENTS.md · rules/</div>
+      <div class="td"><strong style="color:var(--text)">Como se trabalha aqui?</strong><br>Vale meses. Editado com intenção. Versiona e revisa em PR.</div>
+    </div>
+    <div class="tri-col c">
+      <h4 style="color:var(--green)">DECISÃO</h4>
+      <div class="tq">docs/adr/</div>
+      <div class="td"><strong style="color:var(--text)">Por que decidimos assim?</strong><br>Permanente. <strong style="color:var(--green)">Append-only</strong> — nunca editado, apenas superado.</div>
+    </div>
+  </div>
+
+  <div class="bridge" style="margin-top:22px;">
+    <p style="color:var(--muted);font-size:.88rem;line-height:1.7;">🪨 A imagem da aula passada continua valendo, com uma camada nova. O <strong style="color:var(--text)">handoff é sedimento</strong>, o <strong style="color:var(--text)">AGENTS.md é rocha</strong> — e o <strong style="color:var(--green)">ADR é o registro geológico</strong>: explica como aquela rocha se formou. Você não reescreve a história da formação quando o terreno muda. Você anota a camada nova por cima.</p>
+  </div>
+</div>
+</div>
+
+<!-- ─── 15 ─── -->
+<div class="slide" data-title="Passo 6 — rules/">
+<div class="slide-inner slide-scroll">
+  <span class="stepnum">Passo 6</span>
+  <h2 class="sec-title">Regras escopadas<br>e a definição de<br>"pronto"</h2>
+  <p class="lead">Crie a pasta <code style="font-family:'IBM Plex Mono';color:var(--cyan)">rules/</code> com dois arquivos. É o mesmo conceito do <code style="font-family:'IBM Plex Mono';color:var(--cyan)">.mdc</code> da aula passada, em formato que qualquer ferramenta lê.</p>
+
+  <div class="filebox">
+    <div class="filebox-head"><span class="fb-path">rules/tests.md</span><button class="copybtn" onclick="cp(this)">copiar</button></div>
+    <pre># Como escrever testes neste projeto
+
+- pytest. Sem framework adicional.
+- Regra de negócio é testada SEM banco, chamando o domínio direto.
+  Se o teste precisa de SQLite para rodar, o desenho está errado (ADR-001).
+- Um cenário por teste. Nada de teste que verifica cinco coisas.
+- Nome: test_<comportamento>_<condicao>
+  ex: test_saldo_ignora_lote_expirado
+- Datas nos testes são explícitas e fixas. Nunca datetime.now().</pre>
+  </div>
+
+  <div class="filebox">
+    <div class="filebox-head"><span class="fb-path">rules/checks.md</span><button class="copybtn" onclick="cp(this)">copiar</button></div>
+    <pre># Definição de pronto
+
+Antes de encerrar qualquer etapa:
+
+1. Execute os testes existentes.
+2. Execute a validação definida para a etapa atual em docs/plan.md.
+3. Confirme que nenhum teste anterior regrediu.
+4. Confirme que a implementação respeita os ADRs.
+
+Se qualquer validação aplicável falhar, corrija antes de avançar.</pre>
+  </div>
+
+  <p style="color:var(--muted);font-size:.86rem;line-height:1.7;margin:4px 0 12px;">Os arquivos existem, mas ninguém vai lê-los: <strong style="color:var(--text)">nenhuma ferramenta carrega a pasta <code style="font-family:'IBM Plex Mono';color:var(--cyan)">rules/</code> por conta própria.</strong> Acrescente estas <strong style="color:var(--text)">duas linhas</strong> ao <code style="font-family:'IBM Plex Mono';color:var(--cyan)">AGENTS.md</code>, na seção <em>Onde olhar</em> que vocês criaram no passo anterior.</p>
+
+  <div class="filebox">
+    <div class="filebox-head"><span class="fb-path">AGENTS.md · acrescentar em "Onde olhar"</span><button class="copybtn" onclick="cp(this)">copiar</button></div>
+    <pre>- rules/tests.md — leia antes de escrever ou alterar qualquer teste
+- rules/checks.md — execute antes de dizer que uma etapa terminou</pre>
+  </div>
+
+  <div class="warnbox">
+    <div class="wh">repare no verbo</div>
+    <p>Não escreva <em>"rules/tests.md — convenções de teste"</em>. Isso é índice, e índice o agente trata como documentação de apoio. <strong>Leia antes de</strong> e <strong>execute antes de</strong> dizem quando o arquivo precisa entrar na janela — é a mesma lógica da regra escopada da aula 3, escrita de um jeito que qualquer harness entende.</p>
+  </div>
+
+  <div class="expected">
+    <div class="ex-h">o que se espera ao final do passo 6</div>
+    <ul>
+      <li>Dois arquivos em <code>rules/</code> e as duas linhas novas no <code>AGENTS.md</code>, com verbo e gatilho.</li>
+      <li>Entender a diferença: <strong>tests.md é convenção</strong> (como fazer), <strong>checks.md é protocolo</strong> (quando parar).</li>
+      <li>Teste rápido: pergunte ao agente <em>"o que você roda antes de dizer que terminou?"</em> — ele deve citar os três checks, não inventar os próprios.</li>
+    </ul>
+  </div>
+</div>
+</div>
+
+<!-- ─── 16 ─── -->
+<div class="slide" data-title="Passo 7 — O plano">
+<div class="slide-inner slide-scroll">
+  <span class="stepnum p">Passo 7</span>
+  <h2 class="sec-title">O plano vira<br>arquivo</h2>
+  <p class="lead">Repare no tamanho do prompt. Vocês não vão dizer nada sobre stack, arquitetura, escopo ou como testar — <strong style="color:var(--text)">tudo isso já está escrito no repositório</strong>. É a primeira vez na aula que o agente tem contexto suficiente para não improvisar.</p>
+  <p class="lead" style="margin-bottom:14px;">Use o modo <strong style="color:var(--text)">plan</strong> da sua ferramenta, e peça o arquivo: plano que vive só no chat morre com a sessão. Em <code style="font-family:'IBM Plex Mono';color:var(--cyan)">docs/plan.md</code> ele entra no git e sobrevive até a próxima aula.</p>
+
+  <div class="promptbox">
+    <div class="promptbox-head"><span>prompt · use o modo plan da sua ferramenta</span><button class="copybtn" onclick="cp(this)">copiar</button></div>
+    <pre>Crie um plano de implementação para este projeto e salve
+em docs/plan.md, dividido em etapas.</pre>
+  </div>
+
+  <p style="color:var(--muted);font-size:.86rem;line-height:1.7;margin:16px 0 10px;"><strong style="color:var(--text)">Revisem o plano juntos, linha por linha.</strong> É aqui que o custo é baixo.</p>
+
+  <div class="warnbox">
+    <div class="wh">o que procurar na revisão</div>
+    <p>Se a etapa 1 já mistura banco e regra de negócio, <strong>ele não leu o ADR-001</strong>. Corrija agora, no plano — não daqui a vinte minutos, no diff. Revisar plano é mais barato que revisar código, sempre.</p>
+  </div>
+
+  <div class="expected">
+    <div class="ex-h">o que se espera ao final do passo 7</div>
+    <ul>
+      <li><code>docs/plan.md</code> com <strong>etapas numeradas</strong>, cada uma verificável.</li>
+      <li>O plano respeita os ADRs sozinho: <strong>a primeira etapa é domínio puro, sem banco</strong>. Ninguém pediu isso no prompt — ele leu.</li>
+      <li>A stack é Python, FastAPI e SQLite, sem você ter dito. Veio do AGENTS.md.</li>
+      <li>Se o plano tentar implementar resgate e estorno, decidam juntos o corte e ajustem o arquivo — o plano é de vocês, não dele.</li>
+    </ul>
+  </div>
+</div>
+</div>
+
+<!-- ─── 17 ─── -->
+<div class="slide" data-title="Passo 8 — O handoff">
+<div class="slide-inner slide-scroll">
+  <span class="stepnum p">Passo 8</span>
+  <h2 class="sec-title">A terceira vez<br>que vocês escrevem<br>o mesmo prompt</h2>
+  <p class="lead">O handoff da aula 3, o handoff do fim daquela sessão, e agora este. <strong style="color:var(--text)">Corrigiu três vezes, promove</strong> — a regra é de vocês, da aula passada. Então o formato para de morar no prompt e vira arquivo.</p>
+
+  <div class="filebox">
+    <div class="filebox-head"><span class="fb-path">rules/handoff.md</span><button class="copybtn" onclick="cp(this)">copiar</button></div>
+    <pre># Handoff de fim de sessão
+
+Ao encerrar uma sessão, gere docs/handoff.md com estas seções,
+nesta ordem:
+
+## Onde parei
+Estado atual em duas ou três frases. O que existe e está funcionando.
+
+## Decisões não óbvias
+Só as desta sessão, e só as que ainda não viraram ADR nem regra.
+Se já está em docs/adr/ ou no AGENTS.md, aponte — não repita.
+
+## O que tentei e não funcionou
+Caminhos descartados, para não serem tentados de novo na próxima sessão.
+
+## Próximo passo exato
+Uma ação, com nome de arquivo e de etapa do plano.
+Nunca "continuar o projeto".
+
+## Arquivos relevantes
+Caminhos, não conteúdo.
+
+Regras de redação:
+- Seja específico: nomes de arquivo, de função e de etapa do plano.
+- Não repita nada que já esteja no AGENTS.md, em rules/ ou nos ADRs.
+- Sobrescreva o arquivo. Não acumule histórico de sessões.</pre>
+  </div>
+
+  <div class="filebox">
+    <div class="filebox-head"><span class="fb-path">AGENTS.md · terceira linha em "Onde olhar"</span><button class="copybtn" onclick="cp(this)">copiar</button></div>
+    <pre>- rules/handoff.md — siga este formato ao gerar o handoff no fim da sessão</pre>
+  </div>
+
+  <p style="color:var(--muted);font-size:.86rem;line-height:1.7;margin:4px 0 12px;">E agora o prompt cabe em cinco palavras — pela mesma razão do plano: <strong style="color:var(--text)">o que precisava ser dito já está escrito no repositório.</strong></p>
+
+  <div class="promptbox">
+    <div class="promptbox-head"><span>prompt · fim de toda sessão</span><button class="copybtn" onclick="cp(this)">copiar</button></div>
+    <pre>Gere o handoff desta sessão.</pre>
+  </div>
+
+  <div class="bridge" style="margin:16px 0;">
+    <p style="color:var(--muted);font-size:.88rem;line-height:1.7;">💡 Repare na linha <strong style="color:var(--text)">"não repita nada que já esteja nos ADRs"</strong>, que agora vive no arquivo. Ela é nova em relação à aula 3, e existe porque agora são três memórias que precisam se respeitar: o agente adora copiar decisão de ADR para o handoff, e aí a mesma informação passa a viver em dois lugares que vão divergir.</p>
+  </div>
+
+  <div class="expected">
+    <div class="ex-h">o que se espera ao final do passo 8</div>
+    <ul>
+      <li><code>rules/handoff.md</code> criado e a terceira linha no <code>AGENTS.md</code>.</li>
+      <li>O handoff gerado <strong>a partir do prompt curto</strong> — se ele saiu no formato certo, o arquivo de regra funcionou.</li>
+      <li>"Próximo passo exato" deve dizer <strong>"executar a etapa 1 do plano"</strong>, com o nome da etapa — não "continuar o projeto".</li>
+      <li>O handoff <strong>não</strong> entra no commit: está no <code>.gitignore</code>. Mas <code>rules/handoff.md</code> entra — regra versiona, sessão não.</li>
+      <li>Leia antes de fechar. Se estiver vago, a próxima aula começa travada — literalmente.</li>
+    </ul>
+  </div>
+
+  <div class="gitline">git add docs/plan.md rules/ AGENTS.md &amp;&amp; git commit -m "docs: plano e formato de handoff"</div>
+</div>
+</div>
+
+<!-- ─── 18 ─── -->
+<div class="slide" data-title="Checklist da aula 4">
+<div class="slide-inner slide-scroll">
+  <span class="gtag">antes de sair</span>
+  <h2 class="sec-title">Confira o<br>repositório</h2>
+  <p class="lead">Clique em cada item conforme confirma. Se algum ficar em vermelho, resolva antes da próxima aula — ela começa exatamente daqui.</p>
+
+  <div class="checklist">
+    <div class="chk" onclick="this.classList.toggle('on')"><span class="box"></span><span><strong>docs/adr/001</strong> e <strong>002</strong> escritos, com alternativa defensável e custo</span></div>
+    <div class="chk" onclick="this.classList.toggle('on')"><span class="box"></span><span><strong>docs/adr/README.md</strong> com o índice atualizado</span></div>
+    <div class="chk" onclick="this.classList.toggle('on')"><span class="box"></span><span><strong>AGENTS.md</strong> com seção Arquitetura, cada linha citando um ADR</span></div>
+    <div class="chk" onclick="this.classList.toggle('on')"><span class="box"></span><span><strong>rules/tests.md</strong> e <strong>rules/checks.md</strong> criados</span></div>
+    <div class="chk" onclick="this.classList.toggle('on')"><span class="box"></span><span>O agente citou um <strong>número de ADR</strong> quando perguntei de onde vêm as convenções</span></div>
+    <div class="chk" onclick="this.classList.toggle('on')"><span class="box"></span><span><strong>docs/plan.md</strong> revisado por mim, não só gerado</span></div>
+    <div class="chk" onclick="this.classList.toggle('on')"><span class="box"></span><span><strong>rules/handoff.md</strong> criado e citado no AGENTS.md</span></div>
+    <div class="chk" onclick="this.classList.toggle('on')"><span class="box"></span><span><strong>docs/handoff.md</strong> gerado, lido e corrigido</span></div>
+    <div class="chk" onclick="this.classList.toggle('on')"><span class="box"></span><span><code>git log</code> com 3 ou 4 commits contando a história</span></div>
+    <div class="chk" onclick="this.classList.toggle('on')"><span class="box"></span><span>Nenhuma linha de código de aplicação escrita ✓</span></div>
+  </div>
+</div>
+</div>
+
+<!-- ─── 19 ─── -->
+<div class="slide" data-title="Fechamento">
+<div class="slide-inner slide-scroll">
+  <span class="gtag">fim da aula 4</span>
+  <h2 class="sec-title" style="text-align:center;">Uma aula inteira,<br>zero linha de código</h2>
+  <p class="lead" style="text-align:center;max-width:720px;margin:0 auto 26px;">E o repositório está mais pronto para ser implementado do que estava lá no começo, quando havia uma proposta de arquitetura na tela.</p>
+
+  <div style="max-width:760px;margin:0 auto 24px;">
+    <div class="hsec"><div class="ht" style="margin-bottom:2px;">📄 O PRD diz o que o negócio quer</div><div class="hd">E foi ele que revelou, em quatro frases, que a arquitetura óbvia estava errada.</div></div>
+    <div class="hsec"><div class="ht" style="margin-bottom:2px;">🧭 Os ADRs dizem por que decidimos</div><div class="hd">Com a alternativa que perdeu e o custo que aceitamos. Append-only, para sempre.</div></div>
+    <div class="hsec"><div class="ht" style="margin-bottom:2px;">📜 O AGENTS.md diz o que fazer</div><div class="hd">Curto, imperativo, apontando para o ADR que justifica cada linha.</div></div>
+    <div class="hsec star"><div class="ht" style="margin-bottom:2px;">📋 O handoff diz onde paramos</div><div class="hd">E na próxima aula ele vai ser testado a sério: é por ele que a gente recomeça.</div></div>
+  </div>
+
+  <div class="hero-q" style="max-width:760px;margin:0 auto 26px;">
+    💭 Vocês não escreveram nem uma função. Mas cada um de vocês, em seis ferramentas diferentes, tem agora <strong style="font-style:normal;color:var(--text)">o mesmo repositório instruído</strong>. Na próxima aula a gente descobre se isso aguenta o contato com o código.
+  </div>
+
+  <span class="tag" style="justify-content:center;display:flex;">próxima aula</span>
+  <div class="next-pills" style="max-width:760px;margin:0 auto;">
+    <span class="next-pill">Retomada pelo handoff</span>
+    <span class="next-pill">Execução do plano</span>
+    <span class="next-pill">Domínio e testes</span>
+    <span class="next-pill">A tela rodando</span>
+    <span class="next-pill">Uma pegadinha nos ADRs</span>
+  </div>
+</div>
+</div>
+
+</div><!-- /slides -->
+
+<script>
+// ══════════════════════════ BG CANVAS ══════════════════════════
+const bgCanvas = document.getElementById('bg');
+const bgCtx = bgCanvas.getContext('2d');
+let BW, BH, nodes = [];
+function resizeBg() { BW = bgCanvas.width = window.innerWidth; BH = bgCanvas.height = window.innerHeight; }
+resizeBg(); window.addEventListener('resize', () => { resizeBg(); initNodes(); });
+function initNodes() {
+  nodes = [];
+  const n = Math.floor((BW * BH) / 18000);
+  for (let i = 0; i < n; i++) nodes.push({ x:Math.random()*BW, y:Math.random()*BH, vx:(Math.random()-.5)*.4, vy:(Math.random()-.5)*.4, r:Math.random()*2+1 });
+}
+initNodes();
+function drawBg() {
+  bgCtx.clearRect(0, 0, BW, BH);
+  nodes.forEach(n => { n.x += n.vx; n.y += n.vy; if(n.x<0||n.x>BW)n.vx*=-1; if(n.y<0||n.y>BH)n.vy*=-1; });
+  for (let i = 0; i < nodes.length; i++) for (let j = i+1; j < nodes.length; j++) {
+    const dx=nodes[i].x-nodes[j].x, dy=nodes[i].y-nodes[j].y, d=Math.sqrt(dx*dx+dy*dy);
+    if (d < 120) { bgCtx.beginPath(); bgCtx.moveTo(nodes[i].x,nodes[i].y); bgCtx.lineTo(nodes[j].x,nodes[j].y); bgCtx.strokeStyle=`rgba(124,58,237,${.15*(1-d/120)})`; bgCtx.lineWidth=.5; bgCtx.stroke(); }
+  }
+  nodes.forEach(n => { bgCtx.beginPath(); bgCtx.arc(n.x,n.y,n.r,0,Math.PI*2); bgCtx.fillStyle='rgba(0,229,255,.5)'; bgCtx.fill(); });
+  requestAnimationFrame(drawBg);
+}
+drawBg();
+
+// ══════════════════════════ SLIDE ENGINE ══════════════════════════
+const slideEls = Array.from(document.querySelectorAll('.slide'));
+const TOTAL = slideEls.length;
+let current = 0;
+
+const progressBar = document.getElementById('progress-bar');
+const counter     = document.getElementById('slide-counter');
+const titleBar    = document.getElementById('slide-title-bar');
+const navPrev     = document.getElementById('nav-prev');
+const navNext     = document.getElementById('nav-next');
+const dotsEl      = document.getElementById('dots');
+
+slideEls.forEach((_, i) => {
+  const d = document.createElement('div'); d.className = 'dot'; d.onclick = () => goTo(i);
+  dotsEl.appendChild(d);
+});
+
+function goTo(n) {
+  if (n < 0 || n >= TOTAL) return;
+  slideEls.forEach((s, i) => {
+    s.classList.remove('active', 'prev');
+    if (i < n) s.classList.add('prev');
+  });
+  slideEls[n].classList.add('active');
+  current = n;
+  updateUI();
+}
+
+function updateUI() {
+  progressBar.style.width = ((current + 1) / TOTAL * 100) + '%';
+  counter.textContent = `${current + 1} / ${TOTAL}`;
+  titleBar.textContent = slideEls[current].dataset.title || '';
+  navPrev.classList.toggle('disabled', current === 0);
+  navNext.classList.toggle('disabled', current === TOTAL - 1);
+  document.querySelectorAll('.dot').forEach((d,i) => d.classList.toggle('active', i === current));
+}
+
+navPrev.onclick = () => goTo(current - 1);
+navNext.onclick = () => goTo(current + 1);
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  if (e.key === 'ArrowRight' || e.key === 'ArrowDown') goTo(current + 1);
+  if (e.key === 'ArrowLeft'  || e.key === 'ArrowUp')   goTo(current - 1);
+});
+requestAnimationFrame(() => goTo(0));
+
+// ══════════════════════════ COPIAR ══════════════════════════
+function cp(btn) {
+  const box = btn.closest('.filebox, .promptbox');
+  const txt = box.querySelector('pre').innerText;
+  navigator.clipboard.writeText(txt).then(() => {
+    btn.textContent = 'copiado ✓'; btn.classList.add('done');
+    setTimeout(() => { btn.textContent = 'copiar'; btn.classList.remove('done'); }, 1800);
+  }).catch(() => { btn.textContent = 'erro'; setTimeout(() => btn.textContent = 'copiar', 1500); });
+}
+</script>
+</body>
+</html>
