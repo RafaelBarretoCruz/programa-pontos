@@ -23,7 +23,7 @@ Sistema de fidelidade da rede. O documento de negócio está em docs/PRD.md.
 - Domínio em src/pontos/dominio/, sem import de banco, web ou I/O. (ADR-001)
 - Pontos são lançamentos imutáveis. Não existe campo de saldo. (ADR-002)
 - Correção nunca altera lançamento: gera lançamento novo. (ADR-002)
-- Stack: Python, FastAPI, SQLite. Sem ORM.
+- Stack: Python, FastAPI, PostgreSQL. Sem ORM.
 
 ## Onde olhar
 
@@ -31,3 +31,4 @@ Sistema de fidelidade da rede. O documento de negócio está em docs/PRD.md.
 - docs/adr/ — por que decidimos assim
 - rules/tests.md — leia antes de escrever ou alterar qualquer teste
 - rules/checks.md — execute antes de dizer que uma etapa terminou
+- rules/handoff.md — siga este formato ao gerar o handoff no fim da sessão

@@ -1,0 +1,16 @@
+CREATE TABLE campanhas (id uuid PRIMARY KEY, inicia_em date NOT NULL, termina_em date NOT NULL, multiplicador integer NOT NULL CHECK (multiplicador >= 2), CHECK (termina_em >= inicia_em));
+CREATE TABLE compras (id text PRIMARY KEY, cliente_id bigint NOT NULL, valor numeric(12,2) NOT NULL CHECK (valor >= 0), compra_em date NOT NULL, pontos integer NOT NULL CHECK (pontos >= 0), multiplicador integer NOT NULL);
+CREATE TABLE lotes (compra_id text PRIMARY KEY REFERENCES compras(id), cliente_id bigint NOT NULL, pontos integer NOT NULL CHECK (pontos >= 0), compra_em date NOT NULL, expira_em date NOT NULL);
+CREATE TABLE precos_catalogo (produto_id text NOT NULL, nome text NOT NULL, custo_pontos integer NOT NULL CHECK (custo_pontos > 0), efetivo_em date NOT NULL, PRIMARY KEY (produto_id, efetivo_em));
+CREATE TABLE resgates (id text PRIMARY KEY, cliente_id bigint NOT NULL, produto_id text NOT NULL, custo_pontos integer NOT NULL, resgatado_em date NOT NULL);
+CREATE TABLE lancamentos (id uuid PRIMARY KEY, cliente_id bigint NOT NULL, tipo text NOT NULL CHECK (tipo IN ('acumulo','resgate','estorno')), pontos integer NOT NULL CHECK (pontos <> 0), efetivado_em date NOT NULL, lote_compra_id text NOT NULL REFERENCES lotes(compra_id), referencia_id text NOT NULL);
+CREATE INDEX lotes_cliente_idx ON lotes(cliente_id, expira_em);
+CREATE INDEX lancamentos_cliente_idx ON lancamentos(cliente_id, efetivado_em);
+CREATE INDEX lancamentos_referencia_idx ON lancamentos(referencia_id);
+CREATE FUNCTION impedir_alteracao() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'registros do programa são imutáveis'; END; $$;
+CREATE TRIGGER compras_imutaveis BEFORE UPDATE OR DELETE ON compras FOR EACH ROW EXECUTE FUNCTION impedir_alteracao();
+CREATE TRIGGER lotes_imutaveis BEFORE UPDATE OR DELETE ON lotes FOR EACH ROW EXECUTE FUNCTION impedir_alteracao();
+CREATE TRIGGER lancamentos_imutaveis BEFORE UPDATE OR DELETE ON lancamentos FOR EACH ROW EXECUTE FUNCTION impedir_alteracao();
+CREATE TRIGGER resgates_imutaveis BEFORE UPDATE OR DELETE ON resgates FOR EACH ROW EXECUTE FUNCTION impedir_alteracao();
+CREATE TRIGGER campanhas_imutaveis BEFORE UPDATE OR DELETE ON campanhas FOR EACH ROW EXECUTE FUNCTION impedir_alteracao();
+CREATE TRIGGER precos_catalogo_imutaveis BEFORE UPDATE OR DELETE ON precos_catalogo FOR EACH ROW EXECUTE FUNCTION impedir_alteracao();
