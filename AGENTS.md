@@ -29,3 +29,5 @@ Sistema de fidelidade da rede. O documento de negócio está em docs/PRD.md.
 
 - docs/PRD.md — o que o negócio quer
 - docs/adr/ — por que decidimos assim
+- rules/tests.md — leia antes de escrever ou alterar qualquer teste
+- rules/checks.md — execute antes de dizer que uma etapa terminou
