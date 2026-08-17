@@ -7,4 +7,5 @@ raciocínio por trás da decisão.
 | #   | Decisão                             | Status |
 |-----|-------------------------------------|--------|
 | 001 | Expiração de pontos em 12 meses     | aceito |
+| 002 | Expiração de pontos em 12 meses     | aceito |
 | 003 | Expiração de pontos em 12 meses     | aceito |
